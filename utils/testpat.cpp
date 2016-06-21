@@ -7,6 +7,7 @@
 
 #include <kms++/kms++.h>
 #include <kms++/modedb.h>
+#include <kms++/omap/omapkms++.h>
 
 #include <kms++util/kms++util.h>
 
@@ -22,7 +23,7 @@ struct PlaneInfo
 	unsigned w;
 	unsigned h;
 
-	vector<DumbFramebuffer*> fbs;
+	vector<OmapFramebuffer*> fbs;
 };
 
 struct OutputInfo
@@ -33,7 +34,7 @@ struct OutputInfo
 	Plane* primary_plane;
 	Videomode mode;
 	bool user_set_crtc;
-	vector<DumbFramebuffer*> fbs;
+	vector<OmapFramebuffer*> fbs;
 
 	vector<PlaneInfo> planes;
 };
@@ -218,17 +219,17 @@ static void parse_plane(Card& card, const string& plane_str, const OutputInfo& o
 		pinfo.y = output.mode.vdisplay / 2 - pinfo.h / 2;
 }
 
-static vector<DumbFramebuffer*> get_default_fb(Card& card, unsigned width, unsigned height)
+static vector<OmapFramebuffer*> get_default_fb(OmapCard& card, unsigned width, unsigned height)
 {
-	vector<DumbFramebuffer*> v;
+	vector<OmapFramebuffer*> v;
 
 	for (unsigned i = 0; i < s_num_buffers; ++i)
-		v.push_back(new DumbFramebuffer(card, width, height, PixelFormat::XRGB8888));
+		v.push_back(new OmapFramebuffer(card, width, height, PixelFormat::XRGB8888));
 
 	return v;
 }
 
-static vector<DumbFramebuffer*> parse_fb(Card& card, const string& fb_str, unsigned def_w, unsigned def_h)
+static vector<OmapFramebuffer*> parse_fb(OmapCard& card, const string& fb_str, unsigned def_w, unsigned def_h)
 {
 	unsigned w = def_w;
 	unsigned h = def_h;
@@ -251,10 +252,10 @@ static vector<DumbFramebuffer*> parse_fb(Card& card, const string& fb_str, unsig
 			format = FourCCToPixelFormat(sm[3]);
 	}
 
-	vector<DumbFramebuffer*> v;
+	vector<OmapFramebuffer*> v;
 
 	for (unsigned i = 0; i < s_num_buffers; ++i)
-		v.push_back(new DumbFramebuffer(card, w, h, format));
+		v.push_back(new OmapFramebuffer(card, w, h, format));
 
 	return v;
 }
@@ -375,7 +376,7 @@ static vector<Arg> parse_cmdline(int argc, char **argv)
 	return args;
 }
 
-static vector<OutputInfo> setups_to_outputs(Card& card, const vector<Arg>& output_args)
+static vector<OutputInfo> setups_to_outputs(OmapCard& card, const vector<Arg>& output_args)
 {
 	vector<OutputInfo> outputs;
 
@@ -709,12 +710,12 @@ private:
 		queue_next();
 	}
 
-	static unsigned get_bar_pos(DumbFramebuffer* fb, unsigned frame_num)
+	static unsigned get_bar_pos(OmapFramebuffer* fb, unsigned frame_num)
 	{
 		return (frame_num * bar_speed) % (fb->width() - bar_width + 1);
 	}
 
-	static void draw_bar(DumbFramebuffer* fb, unsigned frame_num)
+	static void draw_bar(OmapFramebuffer* fb, unsigned frame_num)
 	{
 		int old_xpos = frame_num < s_num_buffers ? -1 : get_bar_pos(fb, frame_num - s_num_buffers);
 		int new_xpos = get_bar_pos(fb, frame_num);
@@ -857,7 +858,7 @@ int main(int argc, char **argv)
 {
 	vector<Arg> output_args = parse_cmdline(argc, argv);
 
-	Card card(s_device_path);
+	OmapCard card(s_device_path);
 
 	if (!card.has_atomic() && s_flip_sync)
 		EXIT("Synchronized flipping requires atomic modesetting");
