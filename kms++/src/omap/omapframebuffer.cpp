@@ -22,15 +22,10 @@ using namespace std;
 namespace kms
 {
 
-OmapFramebuffer::OmapFramebuffer(OmapCard& card, uint32_t width, uint32_t height, const string& fourcc)
-	:OmapFramebuffer(card, width, height, FourCCToPixelFormat(fourcc))
-{
-}
-
-OmapFramebuffer::OmapFramebuffer(OmapCard& card, uint32_t width, uint32_t height, PixelFormat format)
+OmapFramebuffer::OmapFramebuffer(OmapCard& card, uint32_t width, uint32_t height, PixelFormat format, bool tiled)
         :Framebuffer(card, width, height), m_omap_card(card), m_format(format)
 {
-	Create();
+	Create(tiled);
 }
 
 OmapFramebuffer::~OmapFramebuffer()
@@ -38,7 +33,7 @@ OmapFramebuffer::~OmapFramebuffer()
 	Destroy();
 }
 
-void OmapFramebuffer::Create()
+void OmapFramebuffer::Create(bool tiled)
 {
 	int r;
 
@@ -50,18 +45,32 @@ void OmapFramebuffer::Create()
 		const PixelFormatPlaneInfo& pi = format_info.planes[i];
 		FramebufferPlane& plane = m_planes[i];
 
-		uint32_t size = width() * height() * pi.bitspp / 8;
 		uint32_t flags = OMAP_BO_SCANOUT | OMAP_BO_WC;
 
 		struct omap_bo* bo;
 
-		bo = omap_bo_new(m_omap_card.dev(), size, flags);
-		if (!bo)
-			throw invalid_argument(string("omap_bo_new failed") + strerror(errno));
+		if (!tiled) {
+			uint32_t size = width() * height() * pi.bitspp / 8;
+
+			bo = omap_bo_new(m_omap_card.dev(), size, flags);
+			if (!bo)
+				throw invalid_argument(string("omap_bo_new failed: ") + strerror(errno));
+		} else {
+			bo = omap_bo_new_tiled(m_omap_card.dev(), width(), height(), flags | OMAP_BO_TILED_32);
+			if (!bo)
+				throw invalid_argument(string("omap_bo_new_tiled failed: ") + strerror(errno));
+		}
+
+		// XXX how does this go...
+		uint32_t stride = width() * pi.bitspp / 8;
+		if (stride > 4096)
+			stride = 4096 * 2;
+		else
+			stride = 4096;
 
 		plane.omap_bo = bo;
 		plane.handle = omap_bo_handle(bo);
-		plane.stride = width() * pi.bitspp / 8;
+		plane.stride = stride;
 		plane.size = omap_bo_size(bo);
 		plane.offset = 0;
 		plane.map = 0;
